@@ -2,6 +2,7 @@ package com.sdhaxwoo.mathsolvercamera;
 
 import android.accounts.Account;
 import android.app.Activity;
+import android.content.Context;
 import android.content.Intent;
 import android.graphics.Bitmap;
 import android.nfc.Tag;
@@ -13,6 +14,7 @@ import android.util.Log;
 import android.view.View;
 import android.widget.Button;
 import android.widget.ImageView;
+import android.widget.TextView;
 import android.widget.Toast;
 
 
@@ -23,19 +25,28 @@ import com.google.api.services.vision.v1.VisionRequestInitializer;
 import com.google.api.services.vision.v1.model.AnnotateImageRequest;
 import com.google.api.services.vision.v1.model.BatchAnnotateImagesRequest;
 import com.google.api.services.vision.v1.model.BatchAnnotateImagesResponse;
+import com.google.api.services.vision.v1.model.FaceAnnotation;
 import com.google.api.services.vision.v1.model.Feature;
 import com.google.api.services.vision.v1.model.Image;
 import com.google.api.services.vision.v1.model.TextAnnotation;
 
 import org.apache.commons.io.IOUtils;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Arrays;
+import java.util.List;
 
 public class MainActivity extends AppCompatActivity {
 
     ImageView imageView;
+    private final int ANALYZED_PHOTO = R.raw.text_test;
+    private byte[] byteArray;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -45,6 +56,34 @@ public class MainActivity extends AppCompatActivity {
         Button btnCamera = (Button) findViewById (R.id.btnCamera);
         imageView = (ImageView) findViewById(R.id.imageView);
 
+
+        btnCamera.setOnClickListener(new View.OnClickListener() {
+            @Override
+            public void onClick(View v) {
+                Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
+                startActivityForResult(intent,0);
+//                startActivity(intent);
+
+            }
+        });
+
+
+    }
+
+    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
+        super.onActivityResult(requestCode, resultCode, data);
+
+        //turn bitmap into array of bytes --> jpg
+        Bitmap bitmap = (Bitmap)data.getExtras().get("data");
+        ByteArrayOutputStream stream = new ByteArrayOutputStream();
+        bitmap.compress(Bitmap.CompressFormat.JPEG, 100, stream);
+        byteArray = stream.toByteArray();
+        VisionWork();
+
+        imageView.setImageBitmap(bitmap);
+    }
+
+    private void VisionWork(){
         //sets up the Google Vision API
         Vision.Builder visionBuilder = new Vision.Builder(
                 new NetHttpTransport(),
@@ -53,7 +92,7 @@ public class MainActivity extends AppCompatActivity {
 
         //Initializes and verifies the visionBuilder
         visionBuilder.setVisionRequestInitializer(
-                new VisionRequestInitializer("AIzaSyCAyd4U6W3JTvgitN0ronjCpaV9ixEQmX0"));
+                new VisionRequestInitializer(APIKEY.API_KEY));
         Log.i("Info", "Initialized vision build w/ API key successful");
 
         //Builds the visionBuilder
@@ -62,13 +101,13 @@ public class MainActivity extends AppCompatActivity {
         // Creates photoData
         final byte[][] photoData = new byte[1][1];
         Log.i("Info", "Creates photoData");
+
         // Create new thread
         AsyncTask.execute(new Runnable() {
             @Override
             public void run() {
                 // Convert photo to byte array
-                InputStream inputStream =
-                        getResources().openRawResource(R.raw.text_test);
+                ByteArrayInputStream inputStream = new ByteArrayInputStream(byteArray);
                 try {
                     photoData[0] = IOUtils.toByteArray(inputStream);
                 } catch (IOException e) {
@@ -85,10 +124,12 @@ public class MainActivity extends AppCompatActivity {
                 inputImage.encodeContent(photoData[0]);
                 Log.i("Info", "Encoding image");
 
+                // Distinguishes either FACE DETECTION or TEXT DETECTION
                 Feature desiredFeature = new Feature();
                 desiredFeature.setType("TEXT_DETECTION");
                 Log.i("Info", "Sets desiredFeature successfully");
 
+                // Requests the image to be analyzed
                 AnnotateImageRequest request = new AnnotateImageRequest();
                 request.setImage(inputImage);
                 request.setFeatures(Arrays.asList(desiredFeature));
@@ -108,82 +149,18 @@ public class MainActivity extends AppCompatActivity {
                     e.printStackTrace();
                 }
 
-
+                Log.i("Info", "batchRequest is executed");
+                assert batchResponse != null;
                 final TextAnnotation text = batchResponse.getResponses()
                         .get(0).getFullTextAnnotation();
                 Log.i("Info", "Successfully detects text");
 
-//                Toast.makeText(getApplicationContext(),
-//                        text.getText(), Toast.LENGTH_LONG).show();
-                Log.i("Text", text.getText());
+
+                Log.d("Outtie", text.getText());
+
                 Log.i("Info", "Shows the text");
             }
         });
-
-
-
-
-
-        final Intent intent = new Intent (this, CalculateActivity.class);
-
-        btnCamera.setOnClickListener(new View.OnClickListener() {
-            @Override
-            public void onClick(View v) {
-                Intent intent = new Intent(MediaStore.ACTION_IMAGE_CAPTURE);
-                startActivityForResult(intent,0);
-//                startActivity(intent);
-
-            }
-        });
-
-
     }
-
-    protected void onActivityResult(int requestCode, int resultCode, Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
-        Bitmap bitmap = (Bitmap)data.getExtras().get("data");
-        imageView.setImageBitmap(bitmap);
-    }
-
-//    class GetOAuthToken extends AsyncTask<Void, Void, Void> {
-//        Activity mActivity;
-//        Account mAccount;
-//        int mRequestCode;
-//        String mScope;
-//
-//        GetOAuthToken(Activity activity, Account account, String scope, int requestCode) {
-//            this.mActivity = activity;
-//            this.mScope = scope;
-//            this.mAccount = account;
-//            this.mRequestCode = requestCode;
-//        }
-//
-//        @Override
-//        protected Void doInBackground(Void... params) {
-//            try {
-//                String token = fetchToken();
-//                if (token != null) {
-//                    ((MainActivity)mActivity).onTokenReceived(token);
-//                }
-//            } catch (IOException e) {
-//                e.printStackTrace();
-//            }
-//            return null;
-//        }
-//
-//        protected String fetchToken() throws IOException {
-//            String accessToken;
-//            try {
-//                accessToken = GoogleAuthUtil.getToken(mActivity, mAccount, mScope);
-//                GoogleAuthUtil.clearToken (mActivity, accessToken);
-//                accessToken = GoogleAuthUtil.getToken(mActivity, mAccount, mScope);
-//                return accessToken;
-//            } catch (UserRecoverableAuthException userRecoverableException) {
-//                mActivity.startActivityForResult(userRecoverableException.getIntent(), mRequestCode);
-//            } catch (GoogleAuthException fatalException) {
-//                fatalException.printStackTrace();
-//            }
-//            return null;
-//        }
-    }
+}
 
